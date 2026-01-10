@@ -1,0 +1,1 @@
+"""NEC Compliance Checker Application"""

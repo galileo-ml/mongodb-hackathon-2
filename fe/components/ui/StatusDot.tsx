@@ -7,7 +7,7 @@ interface StatusDotProps {
   size?: "sm" | "md" | "lg";
 }
 
-const statusConfig = {
+const statusConfig: Record<CheckStatus, { symbol: string; color: string }> = {
   pass: {
     symbol: "●",
     color: "text-accent-green",
@@ -20,6 +20,10 @@ const statusConfig = {
     symbol: "○",
     color: "text-accent-red",
   },
+  not_applicable: {
+    symbol: "◌",
+    color: "text-text-tertiary",
+  },
 };
 
 const sizeClasses = {
@@ -29,7 +33,7 @@ const sizeClasses = {
 };
 
 export function StatusDot({ status, size = "md" }: StatusDotProps) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] || statusConfig.pass;
 
   return (
     <span className={`font-mono ${config.color} ${sizeClasses[size]}`}>

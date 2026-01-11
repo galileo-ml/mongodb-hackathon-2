@@ -6,11 +6,24 @@ import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { DrawingViewer } from "@/components/DrawingViewer";
 import { StatusDot } from "@/components/ui/StatusDot";
-import { getDocumentById } from "@/lib/mockData";
-import { Check, CheckStatus } from "@/types";
+import { Check, CheckStatus, Document } from "@/types";
 
 type FilterType = "all" | CheckStatus;
 type ViewMode = "list" | "detail";
+
+const STORAGE_KEY = "nec-compliance-documents";
+
+function getDocumentById(id: string): Document | undefined {
+  if (typeof window === "undefined") return undefined;
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (!stored) return undefined;
+  try {
+    const documents: Document[] = JSON.parse(stored);
+    return documents.find((doc) => doc.id === id);
+  } catch {
+    return undefined;
+  }
+}
 
 export default function CheckDetailPage({
   params,
@@ -19,7 +32,8 @@ export default function CheckDetailPage({
 }) {
   const { id } = use(params);
   const searchParams = useSearchParams();
-  const document = getDocumentById(id);
+  const [document, setDocument] = useState<Document | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [filter, setFilter] = useState<FilterType>("all");
   const [activeCheckId, setActiveCheckId] = useState<string | null>(
@@ -27,12 +41,18 @@ export default function CheckDetailPage({
   );
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
+  useEffect(() => {
+    const doc = getDocumentById(id);
+    setDocument(doc || null);
+    setLoading(false);
+  }, [id]);
+
   const checks = document?.checks || [];
 
   const filteredChecks = checks
     .filter((check) => filter === "all" || check.status === filter)
     .sort((a, b) => {
-      const order: Record<CheckStatus, number> = { fail: 0, warning: 1, pass: 2 };
+      const order: Record<CheckStatus, number> = { fail: 0, warning: 1, pass: 2, not_applicable: 3 };
       return order[a.status] - order[b.status];
     });
 
@@ -44,11 +64,28 @@ export default function CheckDetailPage({
     }
   }, [activeCheckId, filteredChecks]);
 
+  if (loading) {
+    return (
+      <div className="h-screen bg-bg-primary">
+        <Header />
+        <main className="max-w-6xl mx-auto px-6 py-8">
+          <p className="text-text-secondary font-mono">Loading...</p>
+        </main>
+      </div>
+    );
+  }
+
   if (!document) {
     return (
       <div className="h-screen bg-bg-primary">
         <Header />
         <main className="max-w-6xl mx-auto px-6 py-8">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary text-sm font-mono mb-6 transition-colors"
+          >
+            ← Back to Uploads
+          </Link>
           <p className="text-text-secondary font-mono">Document not found</p>
         </main>
       </div>
@@ -67,6 +104,24 @@ export default function CheckDetailPage({
     currentIndex < filteredChecks.length - 1
       ? filteredChecks[currentIndex + 1]
       : null;
+
+  const getStatusLabel = (status: CheckStatus) => {
+    switch (status) {
+      case "fail": return "Failed";
+      case "warning": return "Warning";
+      case "pass": return "Passed";
+      case "not_applicable": return "N/A";
+    }
+  };
+
+  const getStatusColor = (status: CheckStatus) => {
+    switch (status) {
+      case "fail": return "text-accent-red";
+      case "warning": return "text-accent-yellow";
+      case "pass": return "text-accent-green";
+      case "not_applicable": return "text-text-tertiary";
+    }
+  };
 
   return (
     <div className="h-screen bg-bg-primary flex flex-col font-mono overflow-hidden">
@@ -125,6 +180,7 @@ export default function CheckDetailPage({
                     <option value="fail">Failed</option>
                     <option value="warning">Warnings</option>
                     <option value="pass">Passed</option>
+                    <option value="not_applicable">N/A</option>
                   </select>
                 </div>
               </div>
@@ -153,7 +209,7 @@ export default function CheckDetailPage({
                         <div className="text-xs text-text-tertiary mt-1">
                           {check.standard}
                         </div>
-                        {check.status !== "pass" && (
+                        {check.status !== "pass" && check.status !== "not_applicable" && (
                           <p className="text-xs text-text-secondary mt-1 line-clamp-2">
                             {check.message}
                           </p>
@@ -231,19 +287,9 @@ export default function CheckDetailPage({
                     <div className="flex items-center gap-2">
                       <StatusDot status={activeCheck.status} size="sm" />
                       <span
-                        className={`text-xs font-medium uppercase ${
-                          activeCheck.status === "fail"
-                            ? "text-accent-red"
-                            : activeCheck.status === "warning"
-                            ? "text-accent-yellow"
-                            : "text-accent-green"
-                        }`}
+                        className={`text-xs font-medium uppercase ${getStatusColor(activeCheck.status)}`}
                       >
-                        {activeCheck.status === "fail"
-                          ? "Failed"
-                          : activeCheck.status === "warning"
-                          ? "Warning"
-                          : "Passed"}
+                        {getStatusLabel(activeCheck.status)}
                       </span>
                     </div>
 

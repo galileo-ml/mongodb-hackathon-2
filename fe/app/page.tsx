@@ -41,14 +41,23 @@ export default function Home() {
     setError(null);
 
     try {
+      // Convert file to base64 data URL for display
+      const fileUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
       // Call the backend API
       const analysis = await analyzeFile(file);
 
-      // Convert to Document format
+      // Convert to Document format (include the file URL)
       const doc = analysisToDocument(
         analysis,
         file.name,
-        formatFileSize(file.size)
+        formatFileSize(file.size),
+        fileUrl
       );
 
       // Add to documents list (prepend)

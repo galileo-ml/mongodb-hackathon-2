@@ -38,7 +38,17 @@ PNG Upload → Vision Model → Component Extraction → Vector Search → NEC C
 ```bash
 git clone <repo-url>
 cd mongodb-hackathon-2
-pip install -e .
+
+# Create virtual environment
+python -m venv venv
+
+# Activate virtual environment
+source venv/bin/activate  # On macOS/Linux
+# OR
+venv\Scripts\activate     # On Windows
+
+# Install dependencies
+pip install -r requirements.txt
 ```
 
 ### 3. Configure Environment
@@ -55,14 +65,33 @@ MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/nec_compliance
 FIREWORKS_API_KEY=fw_your_api_key_here
 ```
 
-### 4. Set Up MongoDB Atlas Vector Search Index
+### 4. Ingest NEC PDF
+
+```bash
+# Basic ingestion (category-based lookup only)
+python scripts/ingest_nec.py /path/to/nec.pdf 2023
+
+# With RAG embeddings (recommended)
+python scripts/ingest_nec.py /path/to/nec.pdf 2023 --with-rag
+```
+
+This will:
+- Parse the NEC PDF into sections and full articles
+- Store in `nec_codes` and `nec_full_text` collections
+- (With --with-rag) Generate embeddings and store in `nec_chunks` collection
+
+### 5. Set Up MongoDB Atlas Vector Search Index
+
+**Only required if using --with-rag:**
 
 1. Go to MongoDB Atlas Console
-2. Navigate to your cluster → Browse Collections
-3. Select your database → `nec_codes` collection
-4. Click "Search Indexes" tab
-5. Click "Create Search Index"
-6. Select "JSON Editor" and paste:
+2. Navigate to your cluster → **Atlas Search** tab
+3. Click "Create Search Index"
+4. Select **Atlas Vector Search**
+5. Choose **JSON Editor**
+6. Select the `nec_chunks` collection
+7. Name it `chunk_vector_index`
+8. Paste this definition:
 
 ```json
 {
@@ -77,19 +106,8 @@ FIREWORKS_API_KEY=fw_your_api_key_here
 }
 ```
 
-7. Name it `nec_vector_index`
-8. Click "Create"
-
-### 5. Ingest NEC PDF
-
-```bash
-python scripts/ingest_nec.py /path/to/nec.pdf 2023
-```
-
-This will:
-- Parse the NEC PDF into sections
-- Generate embeddings for each section
-- Store in MongoDB with vector embeddings
+9. Click "Create Search Index"
+10. Wait for status to show "Active"
 
 ## Usage
 
@@ -201,21 +219,36 @@ curl http://localhost:8000/analysis/your-analysis-id
 
 ```
 mongodb-hackathon-2/
-├── app/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI app + routes
-│   ├── config.py            # Settings
-│   ├── database.py          # MongoDB connection
-│   ├── models.py            # Pydantic models
-│   ├── fireworks_client.py  # Fireworks AI client
-│   ├── pdf_parser.py        # NEC PDF parser
-│   └── compliance.py        # Compliance logic
+├── app/                         # Backend (Python/FastAPI)
+│   ├── main.py                  # FastAPI app + routes
+│   ├── config.py                # Settings
+│   ├── database.py              # MongoDB + vector search
+│   ├── models.py                # Pydantic models
+│   ├── fireworks_client.py      # Fireworks AI client
+│   ├── pdf_parser.py            # NEC PDF parser + chunking
+│   └── compliance.py            # Hybrid RAG compliance logic
+├── fe/                          # Frontend (Next.js)
+│   ├── app/                     # Next.js pages
+│   ├── components/              # React components
+│   ├── lib/                     # API client + utilities
+│   └── types/                   # TypeScript types
 ├── scripts/
-│   └── ingest_nec.py        # NEC PDF ingestion
+│   └── ingest_nec.py            # NEC PDF ingestion (--with-rag)
+├── requirements.txt             # Python dependencies
 ├── pyproject.toml
 ├── .env.example
 └── README.md
 ```
+
+## Frontend Setup
+
+```bash
+cd fe
+npm install
+npm run dev
+```
+
+Frontend runs on http://localhost:3000
 
 ## Development
 
@@ -260,11 +293,14 @@ Stores analysis results:
 
 ## How It Works
 
-1. **Upload**: User uploads a PNG single-line diagram
-2. **Vision Analysis**: Fireworks vision model extracts electrical components
-3. **Vector Search**: For each component, semantic search finds relevant NEC codes
-4. **Compliance Check**: LLM compares components against NEC requirements
-5. **Report**: Generate detailed compliance report with violations and recommendations
+1. **Upload**: User uploads a PNG/JPG electrical diagram
+2. **Vision Analysis**: Qwen2.5-VL vision model describes diagram and identifies system type
+3. **Hybrid RAG Retrieval**:
+   - Category lookup (system type → relevant NEC articles)
+   - Vector search (semantic similarity on 5000+ chunks)
+   - LLM's built-in NEC knowledge
+4. **Compliance Check**: Vision model compares actual diagram against NEC codes
+5. **Report**: Returns pass/warning/fail/not_applicable for each code with compliance score
 
 ## License
 

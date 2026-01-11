@@ -57,12 +57,26 @@ export function DrawingViewer({
             }}
           >
             {fileUrl ? (
-              /* Embedded PDF */
-              <iframe
-                src={`${fileUrl}#toolbar=0&navpanes=0`}
-                className="w-full h-full border-0"
-                title={filename}
-              />
+              /* Display image or PDF based on file type */
+              fileUrl.startsWith("data:image/") ? (
+                <img
+                  src={fileUrl}
+                  alt={filename}
+                  className="w-full h-full object-contain"
+                />
+              ) : fileUrl.startsWith("data:application/pdf") || fileUrl.endsWith(".pdf") ? (
+                <iframe
+                  src={`${fileUrl}#toolbar=0&navpanes=0`}
+                  className="w-full h-full border-0"
+                  title={filename}
+                />
+              ) : (
+                <img
+                  src={fileUrl}
+                  alt={filename}
+                  className="w-full h-full object-contain"
+                />
+              )
             ) : (
               /* Mock Drawing */
               <div className="w-full h-full flex items-center justify-center p-8">
